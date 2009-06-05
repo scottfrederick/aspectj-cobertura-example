@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<aspectj>
+  <aspects>
+    <aspect name="com.example.ExampleAspect"/>
+  </aspects>
+
+  <weaver options="-verbose -showWeaveInfo -XnoInline">
+  </weaver>
+</aspectj>
+

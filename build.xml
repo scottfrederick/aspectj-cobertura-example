@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="aspectj-example" default="all">
+  <property name="cobertura.dir" value="${basedir}/lib/cobertura-1.9"/>
+  <property name="coverage.file" value="${basedir}/coverage.ser"/>
+
+  <path id="coverage.classpath">
+   <fileset dir="${cobertura.dir}">
+     <include name="cobertura.jar" />
+   </fileset>
+   <fileset dir="${cobertura.dir}/lib">
+     <include name="**/*.jar" />
+   </fileset>
+ </path>
+
+  <taskdef resource="testngtasks" classpath="${basedir}/lib/testng/testng-jdk15.jar"/>
+  <taskdef classpathref="coverage.classpath" resource="tasks.properties"/>
+
+  <!-- Compiler options -->
+  <property name="compiler.debug" value="on"/>
+  <property name="compiler.generate.no.warnings" value="off"/>
+  <property name="compiler.max.memory" value="128m"/>
+
+  <!-- Project Libraries -->
+  
+  <path id="library.classpath">
+    <pathelement location="${basedir}/lib/aspectj/aspectjrt.jar"/>
+    <pathelement location="${basedir}/lib/aspectj/aspectjrt1.6.4-src.jar"/>
+    <pathelement location="${basedir}/lib/aspectj/aspectjtools.jar"/>
+    <pathelement location="${basedir}/lib/aspectj/aspectjtools1.6.4-src.jar"/>
+    <pathelement location="${basedir}/lib/aspectj/aspectjweaver.jar"/>
+    <pathelement location="${basedir}/lib/aspectj/aspectjweaver1.6.4-src.jar"/>
+    <pathelement location="${basedir}/lib/aspectj/org.aspectj.matcher-1.6.4-src.jar"/>
+    <pathelement location="${basedir}/lib/aspectj/org.aspectj.matcher.jar"/>
+
+    <pathelement location="${basedir}/lib/cobertura-1.9/cobertura.jar"/>
+
+    <pathelement location="${basedir}/lib/testng/testng-jdk15.jar"/>
+  </path>
+  
+  <dirname property="basedir" file="${ant.file}"/>
+  
+  <property name="output.dir" value="${basedir}/classes/production"/>
+  <property name="instrumentedoutput.dir" value="${basedir}/classes/instrumented"/>
+
+  <path id="classpath">
+    <path refid="library.classpath"/>
+  </path>
+  
+  <path id="runtime.classpath">
+    <pathelement location="${output.dir}"/>
+    <path refid="library.classpath"/>
+  </path>
+  
+  <path id="runtime.classpath.with.instrumented">
+    <pathelement location="${instrumentedoutput.dir}"/>
+    <path refid="runtime.classpath"/>
+  </path>
+
+  <path id="sourcepath">
+    <dirset dir="${basedir}">
+      <include name="src"/>
+    </dirset>
+  </path>
+
+  <target name="instrument">
+    <mkdir dir="${instrumentedoutput.dir}"/>
+
+    <delete>
+      <fileset dir="${instrumentedoutput.dir}" includes="*.ser"/>
+    </delete>
+    <cobertura-instrument datafile="${coverage.file}" todir="${instrumentedoutput.dir}">
+      <fileset dir="${output.dir}">
+        <include name="**/*.class"/>
+      </fileset>
+    </cobertura-instrument>
+  </target>
+
+
+  <!--
+    This target runs the unit tests twice - once without the Cobertura-instrumented classes in the classpath
+    and a second time with Cobertura-instrumented classes in the classpath. The first pass should succeed,
+    the second pass should fail because the aspect is not applied.
+  -->
+  <target  name="unittest" depends="compile, instrument">
+    <unittest.with.classpath classpath="runtime.classpath"/>
+    <unittest.with.classpath classpath="runtime.classpath.with.instrumented"/>
+  </target>
+
+  <macrodef name="unittest.with.classpath">
+    <attribute name="classpath"/>
+    <sequential>
+      <testng workingDir="${basedir}" haltonfailure="off"
+              failureproperty="testng.tests.failed" verbose="10">
+        <classfileset dir="${output.dir}">
+          <include name="**/*Test.class"/>
+        </classfileset>
+        <jvmarg value="-javaagent:${basedir}/lib/aspectj/aspectjweaver.jar"/>
+        <sysproperty key="net.sourceforge.cobertura.datafile" file="${coverage.file}"/>
+        <classpath refid="@{classpath}"/>
+      </testng>
+    </sequential>
+  </macrodef>
+
+  <target name="compile">
+    <mkdir dir="${output.dir}"/>
+    <javac destdir="${output.dir}" debug="${compiler.debug}" nowarn="${compiler.generate.no.warnings}" memorymaximumsize="${compiler.max.memory}" fork="true">
+      <classpath refid="classpath"/>
+      <src refid="sourcepath"/>
+    </javac>
+    
+    <copy todir="${output.dir}">
+      <fileset dir="${basedir}/src">
+        <patternset excludes="**/*.java"/>
+        <type type="file"/>
+      </fileset>
+    </copy>
+  </target>
+  
+  <target name="clean" description="cleanup all">
+    <delete dir="classes"/>
+    <delete dir="test-output"/>
+    <delete file="${coverage.file}"/>
+  </target>
+  
+  <target name="all" depends="clean, compile, unittest" description="build all"/>
+</project>
